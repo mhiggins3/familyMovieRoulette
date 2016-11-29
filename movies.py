@@ -7,12 +7,15 @@ movies when your kids can't decide what to watch.
 from __future__ import print_function
 from array import *
 import random
+import uuid
 import boto3
 import json
 import urllib2
 import urllib
 import decimal
 import logging
+from boto3.dynamodb.conditions import Key, Attr
+
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -48,8 +51,13 @@ def build_response(session_attributes, speechlet_response):
 
 def get_user_movie_count(session):
     user_movie_count_table = boto3.resource('dynamodb').Table('UserMovieCount')
-    user_movie_count = user_movie_count_table.query(KeyConditionExpression=Key('userId').eq(session['user']['userId']))
-    return int(user_movie_count['count'])
+    user_movie_counts = user_movie_count_table.query(KeyConditionExpression=Key('userId').eq(session['user']['userId']))
+    
+    if user_movie_counts['Count'] > 0:
+        return int(user_movie_counts['Items'][0]['c'])
+    else:
+        return 0
+    
 
 def update_user_movie_count(session, count):
     user_movie_count_table = boto3.resource('dynamodb').Table('UserMovieCount')
@@ -57,7 +65,7 @@ def update_user_movie_count(session, count):
         Key={
             'userId': session['user']['userId'],
         },   
-        UpdateExpression="set count = :c",
+        UpdateExpression="set c = :c",
         ExpressionAttributeValues={
             ':c': count,
         },
@@ -65,10 +73,30 @@ def update_user_movie_count(session, count):
     )
 
 def get_random_movie(session):
-    user_movies_table = boto3.resource('dynamodb').Table('UserMovies')
-    item_Id = random.randomrange(get_user_movie_count(session)) 
-    imdb_Id = user_movies_table.query(KeyConditionExpression=Key('userId').eq(session['user']['userId']) && Key('itemId').eq(itemId))
-    return movie
+    
+    user_movie_count = get_user_movie_count(session)
+    logger.info("user_movie_count: " + str(user_movie_count))
+    if user_movie_count == 0:
+        return {}
+    else:    
+        user_movies_table = boto3.resource('dynamodb').Table('UserMovies')
+        movies_table = boto3.resource('dynamodb').Table('Movies')
+        item_id = 1;
+        if user_movie_count > 1:
+            item_id = random.randrange(user_movie_count)
+        logger.info("Session id:" + session['user']['userId'] + " itemId: " + str(item_id))
+        # imdb_ids = user_movies_table.query(KeyConditionExpression=Key('userId').eq(session['user']['userId']))
+        imdb_ids = user_movies_table.scan(FilterExpression=Attr('userId').eq(session['user']['userId']))
+        logger.info(imdb_ids)
+        imdb_id = ""
+        for item in imdb_ids['Items']:
+            if item['itemId'] == item_id:
+                imdb_id = item['imdbId']
+                break
+            
+        movie = movies_table.query(KeyConditionExpression=Key('imdbId').eq(imdb_id))
+        logger.info(movie['Items'][0])
+        return movie['Items'][0]
 
 def add_movie_to_user_movies(session, movie):
     movies_table = boto3.resource('dynamodb').Table('Movies')
@@ -90,13 +118,15 @@ def add_movie_to_user_movies(session, movie):
     )
     user_movie_count = get_user_movie_count(session) + 1
     user_movies_table = boto3.resource('dynamodb').Table('UserMovies') 
-    user_moves_table.put_item(
+    user_movies_table.put_item(
         Item={
-           'itemId': user_move_count,
+            'uuid': str(uuid.uuid4()),
+           'itemId': user_movie_count,
            'imdbId': movie['imdbID'],
            'userId': session['user']['userId'], 
         } 
     )
+    update_user_movie_count(session, user_movie_count)
     
 def get_movie_title(intent, session):
     random_movie = get_random_movie(session)
