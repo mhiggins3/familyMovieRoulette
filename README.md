@@ -3,7 +3,7 @@ Fun little Alexa skill that allows you to create a small movie DB for picking ra
 When adding a moive the skill will reach out to IMDB for some details about the movie you are adding including a brief synopsis as well
 as the movie rating. 
 
-When you ask Alexa "what movie should I watch" the skill will fetch and random movie from the DB and read back the synopsis and rating. 
+When you ask Alexa "what movie should I watch" the skill will fetch a random movie from the DB and read back the synopsis and rating. 
 
 # The Story
 In my house we have a candy bowl in the livingroom with a bunch of movie titles written on a scraps of paper. They are all family friendly so when Friday night comes around and we have nothing to do but watch a moive one of the kids will grab a random scrap of paper and that will be the movie we watch that night. 
