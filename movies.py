@@ -29,8 +29,8 @@ def build_speechlet_response(title, output, reprompt_text, should_end_session):
         },
         'card': {
             'type': 'Simple',
-            'title': "SessionSpeechlet - " + title,
-            'content': "SessionSpeechlet - " + output
+            'title':  title,
+            'content': output
         },
         'reprompt': {
             'outputSpeech': {
@@ -49,54 +49,24 @@ def build_response(session_attributes, speechlet_response):
         'response': speechlet_response
     }
 
-def get_user_movie_count(session):
-    user_movie_count_table = boto3.resource('dynamodb').Table('UserMovieCount')
-    user_movie_counts = user_movie_count_table.query(KeyConditionExpression=Key('userId').eq(session['user']['userId']))
-    
-    if user_movie_counts['Count'] > 0:
-        return int(user_movie_counts['Items'][0]['c'])
-    else:
-        return 0
-    
-
-def update_user_movie_count(session, count):
-    user_movie_count_table = boto3.resource('dynamodb').Table('UserMovieCount')
-    user_movie_count_table.update_item(
-        Key={
-            'userId': session['user']['userId'],
-        },   
-        UpdateExpression="set c = :c",
-        ExpressionAttributeValues={
-            ':c': count,
-        },
-        ReturnValues="UPDATED_NEW" 
-    )
 
 def get_random_movie(session):
-    
-    user_movie_count = get_user_movie_count(session)
-    logger.info("user_movie_count: " + str(user_movie_count))
-    if user_movie_count == 0:
-        return {}
-    else:    
         user_movies_table = boto3.resource('dynamodb').Table('UserMovies')
         movies_table = boto3.resource('dynamodb').Table('Movies')
-        item_id = 1;
-        if user_movie_count > 1:
-            item_id = random.randrange(user_movie_count)
-        logger.info("Session id:" + session['user']['userId'] + " itemId: " + str(item_id))
-        # imdb_ids = user_movies_table.query(KeyConditionExpression=Key('userId').eq(session['user']['userId']))
         imdb_ids = user_movies_table.scan(FilterExpression=Attr('userId').eq(session['user']['userId']))
-        logger.info(imdb_ids)
-        imdb_id = ""
-        for item in imdb_ids['Items']:
-            if item['itemId'] == item_id:
-                imdb_id = item['imdbId']
-                break
-            
-        movie = movies_table.query(KeyConditionExpression=Key('imdbId').eq(imdb_id))
-        logger.info(movie['Items'][0])
-        return movie['Items'][0]
+        count = imdb_ids['Count']
+        movie_list = imdb_ids['Items']
+
+        if count == 0:
+            return {}
+        else:    
+            logger.info(imdb_ids)
+            logger.info(movie_list)
+            user_movie = random.choice(movie_list)            
+            imdb_id = user_movie['imdbId']
+            movie = movies_table.query(KeyConditionExpression=Key('imdbId').eq(imdb_id))
+            logger.info(movie['Items'][0])
+            return movie['Items'][0]
 
 def add_movie_to_user_movies(session, movie):
     movies_table = boto3.resource('dynamodb').Table('Movies')
@@ -116,17 +86,14 @@ def add_movie_to_user_movies(session, movie):
            'rated': rated,
         }
     )
-    user_movie_count = get_user_movie_count(session) + 1
     user_movies_table = boto3.resource('dynamodb').Table('UserMovies') 
     user_movies_table.put_item(
         Item={
             'uuid': str(uuid.uuid4()),
-           'itemId': user_movie_count,
-           'imdbId': movie['imdbID'],
+           'imdbId': imdbID,
            'userId': session['user']['userId'], 
         } 
     )
-    update_user_movie_count(session, user_movie_count)
     
 def get_movie_title(intent, session):
     random_movie = get_random_movie(session)
@@ -145,7 +112,7 @@ def get_movie_title(intent, session):
     reprompt_text = None
 
     return build_response(session_attributes, build_speechlet_response(
-        intent['name'], speech_output, reprompt_text, should_end_session))
+        "Find a movie", speech_output, reprompt_text, should_end_session))
 
 # --------------- Functions that control the skill's behavior ------------------
 
@@ -169,7 +136,26 @@ def get_welcome_response():
     return build_response(session_attributes, build_speechlet_response(
         card_title, speech_output, reprompt_text, should_end_session))
 
+def get_help_response():
 
+    session_attributes = {}
+    card_title = "Help"
+    speech_output = "Welcome to family movie roulette. " \
+                    "I can tell you a ramdom movie to watch by saying, " \
+                    "what movie should I watch?, " \
+                    "You can add a movie by saying " \
+                    "add the movie Goonies. " \
+                    "You can also delete an existing movie by saying, " \
+                    "Delete the movive Goonies."
+    # If the user either does not reply to the welcome message or says something
+    # that is not understood, they will be prompted again with this text.
+    reprompt_text = "Say what movie should I watch, " \
+                    "or say add the movie Goonies"
+    should_end_session = False
+
+    return build_response(session_attributes, build_speechlet_response(
+        card_title, speech_output, reprompt_text, should_end_session))
+        
 def handle_session_end_request():
     card_title = "Session Ended"
     speech_output = "Thanks for looking up a move. " \
@@ -183,19 +169,29 @@ def add_movie(intent, session):
     """ Adds a move to the DB 
     """
 
-    card_title = intent['name']
+    card_title = "Add a movie"
     session_attributes = {}
     should_end_session = False
 
     if 'Movie' in intent['slots']:
-        movie_title = intent['slots']['Movie']['value']
-        encoded_movie_title = urllib.urlencode({"t" : movie_title, "plot" : "short", "r" : "json"})
+        if 'value' in intent['slots']['Movie']:
+            movie_title = intent['slots']['Movie']['value']
+        else:
+            speech_output = "I didn't hear what movie you wanted to add." \
+                            "Please try again."
+            reprompt_text = "I'm not sure what movie you wanted me to add. " \
+                            "You can add a movie by saying, " \
+                            "add the movie Goonies."
+            return build_response(session_attributes, build_speechlet_response(
+                card_title, speech_output, reprompt_text, should_end_session))
+    
+        encoded_movie_title = urllib.urlencode({"apikey" : "3efbd445", "t" : movie_title, "plot" : "short", "r" : "json"})
         url = "http://www.omdbapi.com/?" + encoded_movie_title
         logger.info(url)
         response = urllib2.urlopen(url);
         movie = json.load(response, parse_float = decimal.Decimal)
         if(movie['Response'] == 'False'):
-            speech_output = "I could not find a movie with the tile " + \
+            speech_output = "I could not find a movie with the title " + \
                         movie_title + \
                         ". Please try again. " 
                     
@@ -223,12 +219,48 @@ def add_movie(intent, session):
 
 def remove_movie(intent, session):
     
-    card_title = intent['name']
+    card_title = "Removing Movie"
     session_attributes = {}
     should_end_session = False
     
     if 'Movie' in intent['slots']:
-        movie_title = intent['slots']['Movie']['value']
+        if 'value' in intent['slots']['Movie']:
+            movie_title = intent['slots']['Movie']['value']
+        else:
+            speech_output = "I didn't hear what movie you wanted to remove. " \
+                            "Please try again."
+            reprompt_text = "I'm not sure what movie you wanted me to remove. " \
+                            "You can delete a movie by saying, " \
+                            "remove the movie Goonies."
+            return build_response(session_attributes, build_speechlet_response(
+                card_title, speech_output, reprompt_text, should_end_session))
+        movies_table = boto3.resource('dynamodb').Table('Movies')
+        user_movies_table = boto3.resource('dynamodb').Table('UserMovies') 
+
+        user_movies_result = user_movies_table.scan(FilterExpression=Attr('userId').eq(session['user']['userId']))
+        for user_movie in user_movies_result['Items']:
+            imdb_id = user_movie['imdbId']
+            movie = movies_table.query(KeyConditionExpression=Key('imdbId').eq(imdb_id))
+
+            logger.info(movie)
+            if movie_title.lower() in movie['Items'][0]['title'].lower():
+                user_movies_table.delete_item(Key={'uuid':user_movie['uuid']})
+                speech_output = "Ok I deleted the movie " + movie_title + \
+                                " from your list. You can hear a random movie title by saying, " \
+                            "what movie should I watch? "
+                reprompt_text = "Ok I deleted the movie " + movie_title + \
+                                " from your list. You can hear a random movie title by saying, " \
+                            "what movie should I watch? "
+                return build_response(session_attributes, build_speechlet_response(
+                    card_title, speech_output, reprompt_text, should_end_session))
+        
+        speech_output = "I could not find the movie " + movie_title + \
+                                " in your list. Please try again."
+        reprompt_text = "I could not find the movie " + movie_title + \
+                                " in your list.  Please try again."
+                                
+        return build_response(session_attributes, build_speechlet_response(
+                    card_title, speech_output, reprompt_text, should_end_session))
     else:
         speech_output = "I didn't hear what movie you wanted to remove." \
                         "Please try again."
@@ -236,6 +268,30 @@ def remove_movie(intent, session):
                         "You can remove a movie by saying, " \
                         "remove the movie Goonies."
         
+    return build_response(session_attributes, build_speechlet_response(
+        card_title, speech_output, reprompt_text, should_end_session))
+
+def list_movies(intent, session):
+    card_title = "List Movies"
+    session_attributes = {}
+    should_end_session = True
+    reprompt_text = None
+    speech_output = ""
+    movies_table = boto3.resource('dynamodb').Table('Movies')
+    user_movies_table = boto3.resource('dynamodb').Table('UserMovies') 
+    user_movies_result = user_movies_table.scan(FilterExpression=Attr('userId').eq(session['user']['userId']))
+    if user_movies_result['Count'] == 0:
+        should_end_session = False
+        speech_output = "You do not have any movies saved yet. To add a movie you can say " \
+                        "add the movie Goonies. "
+        return build_response(session_attributes, build_speechlet_response(
+            card_title, speech_output, reprompt_text, should_end_session))
+        
+    speech_output = "You have the following movies in your list. \n" 
+    for user_movie in user_movies_result['Items']:
+        imdb_id = user_movie['imdbId']
+        movie = movies_table.query(KeyConditionExpression=Key('imdbId').eq(imdb_id))
+        speech_output += movie['Items'][0]['title'] + ". \n"  
     return build_response(session_attributes, build_speechlet_response(
         card_title, speech_output, reprompt_text, should_end_session))
 # --------------- Events ------------------
@@ -261,21 +317,22 @@ def on_launch(launch_request, session):
 def on_intent(intent_request, session):
     """ Called when the user specifies an intent for this skill """
 
-    print("on_intent requestId=" + intent_request['requestId'] +
-          ", sessionId=" + session['sessionId'])
-
     intent = intent_request['intent']
     intent_name = intent_request['intent']['name']
     logger.info(json.dumps(session))
+    print("on_intent requestId=" + intent_request['requestId'] +
+          ", sessionId=" + session['sessionId'] + ", intent_name=" + intent_name)
     # Dispatch to your skill's intent handlers
     if intent_name == "AddMovieIntent":
         return add_movie(intent, session)
     elif intent_name == "FindMovieIntent":
         return get_movie_title(intent, session)
-    elif inent_name == "RemoveMovieIntent":
+    elif intent_name == "RemoveMovieIntent":
         return remove_movie(intent, session)
+    elif intent_name == "ListMoviesIntent":
+        return list_movies(intent, session)
     elif intent_name == "AMAZON.HelpIntent":
-        return get_welcome_response()
+        return get_help_response()
     elif intent_name == "AMAZON.CancelIntent" or intent_name == "AMAZON.StopIntent":
         return handle_session_end_request()
     else:
@@ -289,7 +346,12 @@ def on_session_ended(session_ended_request, session):
     """
     print("on_session_ended requestId=" + session_ended_request['requestId'] +
           ", sessionId=" + session['sessionId'])
-    # add cleanup logic here
+    should_end_session = True
+    session_attributes = {}
+    reprompt_text = None
+    speech_output = "Thank you for playing family movie roulette"
+    return build_response(session_attributes, build_speechlet_response(
+        "AMAZON.CancelIntent", speech_output, reprompt_text, should_end_session))
 
 
 # --------------- Main handler ------------------
@@ -320,4 +382,6 @@ def lambda_handler(event, context):
         return on_intent(event['request'], event['session'])
     elif event['request']['type'] == "SessionEndedRequest":
         return on_session_ended(event['request'], event['session'])
+    else:
+        raise ValueError("Invalid intent ")
 
