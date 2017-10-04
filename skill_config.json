@@ -34,8 +34,8 @@
           "type_validator": "alexa_family_movie_roulette_types.REMOVE_MOVIE_TITLE",
           "msg_01_text": "Sorry I could not hear the movie title, please try again, what movie do you want to remove? "
         }
-      },
-
+      }
+	},
     "add_movie_intent": {
       "conditions": {
         "add_movie_succeded": {
@@ -196,6 +196,6 @@
     }
   }
 }
-}
+
 }
 
