@@ -12,7 +12,7 @@
       "AddMovieIntent":      "add_movie_intent",
       "FindMovieIntent":     "find_movie_intent",
       "ListMoviesIntent":    "list_movies_intent",
-      "RemoveMovieIntent":   "remove_move_intent",
+      "RemoveMovieIntent":   "remove_movie_intent",
       "AMAZON.CancelIntent": "default_cancel_intent",
       "AMAZON.StopIntent":   "default_stop_intent"
     },
@@ -103,14 +103,14 @@
       "conditions": {
 		"remove_movie_succeded": {
 	   		"speech_out_text": [
-				"OK I removed the movie {movie_title} from your list. ",
+				"OK I removed the movie {RemoveMovie} from your list. ",
 				"You can hear a random movie title by saying, ",
                 "what movie should I watch? "
 			],
 			"card": {
 				"title": "Remove A Movie",
             	"content": [
-					"OK I removed the movie {movie_title} from your list. ",
+					"OK I removed the movie {RemoveMovie} from your list. ",
 					"You can hear a random movie title by saying, ",
                 	"what movie should I watch? "
             	]

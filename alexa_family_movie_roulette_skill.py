@@ -1,6 +1,7 @@
 from __future__ import print_function
-from ask_amy.state_mgr.stack_dialog_mgr import StackDialogManager
 from ask_amy.core.reply import Reply
+from ask_amy.state_mgr.stack_dialog_mgr import required_fields
+from ask_amy.state_mgr.stack_dialog_mgr import StackDialogManager
 from array import *
 from boto3.dynamodb.conditions import Key, Attr
 import boto3
@@ -9,6 +10,9 @@ import json
 import logging 
 import random
 import urllib
+import urllib.request
+from urllib.error import URLError
+from urllib.parse import urlencode
 import uuid
 
 logger = logging.getLogger()
@@ -23,12 +27,13 @@ class AlexaFamilyMovieRouletteSkill(StackDialogManager):
     def new_session_started(self):
         logger.debug("**************** entering {}.new_session_started".format(self.__class__.__name__))
 
+    @required_fields(['AddMovie'])
     def add_movie_intent(self):
         logger.debug("**************** entering {}.add_movie_intent".format(self.__class__.__name__))
         movie = MovieService.add_movie(self.request.attributes['AddMovie'], self.session.user_id)
 
         condition = 'add_movie_succeded'
-        if movie['Result'] == 'False':
+        if movie['Response'] == 'False':
             condition = 'add_movie_failed'
 
         reply_dialog = self.reply_dialog[self.intent_name]['conditions'][condition]
@@ -37,7 +42,6 @@ class AlexaFamilyMovieRouletteSkill(StackDialogManager):
     def find_movie_intent(self):
         logger.debug("**************** entering {}.find_movie_intent".format(self.__class__.__name__))
         session = self.session
-        logger.debug(session.user_id)
 
         random_movie = MovieService.find_movie_for_user(self.session.user_id)
         condition = 'find_movie_failed'
@@ -54,44 +58,52 @@ class AlexaFamilyMovieRouletteSkill(StackDialogManager):
 
     def list_movies_intent(self):
         logger.debug("**************** entering {}.list_movie_intent".format(self.__class__.__name__))
-        movies = MovieService.list_movies(self.session.user_id)
+        movies = MovieService.find_movies_for_user(self.session.user_id)
         condition = 'list_movies_failed'
         if(len(movies) > 0):
-            condition = 'list_movie_succeded'
+            condition = 'list_movies_succeded'
             movies_text = ""
             for movie in movies:
                 movies_text += movie['Items'][0]['title'] + ". \n"
-            self.session.attributes['movies'] 
-        
+            self.session.attributes['movies'] = movies_text
+
         reply_dialog = self.reply_dialog[self.intent_name]['conditions'][condition]
         return Reply.build(reply_dialog, self.event)
 
-    def remove_move_intent(self):
+    @required_fields(['RemoveMovie'])
+    def remove_movie_intent(self):
         logger.debug("**************** entering {}.remove_movie_intent".format(self.__class__.__name__))
+        logger.debug(self.session.user_id)
 
-        status = MovieService.delete_movie(self.session.user_id)
+        status = MovieService.delete_movie_for_user(self.request.attributes['RemoveMovie'], self.session.user_id)
         condition = "remove_movie_failed"
-        if(status == true):
+        if(status == 'true'):
             condition = "remove_movie_failed"
 
         reply_dialog = self.reply_dialog[self.intent_name]['conditions'][condition]
         return Reply.build(reply_dialog, self.event)
 
-    def play_move_intent(self):
+    def play_movie_intent(self):
         logger.debug("**************** entering {}.play_movie_intent".format(self.__class__.__name__))
 
 class MovieService(object):
     
     @staticmethod
     def add_movie(movie_title, user_id):
-        movie = ImdbService.search_movie_title(move_title)
+        movie = ImdbService.search_movie_title(movie_title)
+        logger.debug("******************** userid:" + user_id)
         if(movie['Response'] == 'False'):
             return movie
         else:
-            return add_movie_to_user_movies(movie)
+            user_movies_table = boto3.resource('dynamodb').Table('UserMovies')
+            result = user_movies_result = user_movies_table.scan(FilterExpression=Attr('userId').eq(user_id) & Attr('imdbId').eq(movie['imdbID']))
+            if result['Count'] > 0:
+                return movie
+            
+            return MovieService.add_movie_to_user_movies(movie, user_id)
 
     @staticmethod 
-    def remove_movie_for_user(user_id):
+    def delete_movie_for_user(movie_title, user_id):
         movies_table = boto3.resource('dynamodb').Table('Movies')
         user_movies_table = boto3.resource('dynamodb').Table('UserMovies')
         user_movies_result = user_movies_table.scan(FilterExpression=Attr('userId').eq(user_id))
@@ -121,7 +133,6 @@ class MovieService(object):
     def find_movie_for_user(user_id):
         user_movies_table = boto3.resource('dynamodb').Table('UserMovies')
         movies_table = boto3.resource('dynamodb').Table('Movies')
-        logger.debug("**************** user_id: " + user_id)
         imdb_ids = user_movies_table.scan(FilterExpression=Attr('userId').eq(user_id))
         count = imdb_ids['Count']
         movie_list = imdb_ids['Items']
@@ -139,45 +150,37 @@ class MovieService(object):
    
     
     @staticmethod
-    def add_move_to_user_movies(movie, user_id):
+    def add_movie_to_user_movies(movie, user_id):
         movies_table = boto3.resource('dynamodb').Table('Movies')
-        year = int(movie['Year'])
-        title = movie['Title']
-        genre = movie['Genre']  
-        plot = movie['Plot']    
-        rated = movie['Rated']  
-        imdbID = movie['imdbID']
-        image = movie['Poster']
-        movies_table.put_item(  
-            Item={
-                'imdbId': imdbID,
-                'year': year,
-                'title': title,
-                'genre': genre,
-                'plot': plot,         
-                'rated': rated,
-                'image': image,
-            }
-        )
+        movie_item = {
+        'year': int(movie['Year']),
+        'title': movie['Title'],
+        'genre': movie['Genre'], 
+        'plot': movie['Plot'], 
+        'rated': movie['Rated'],  
+        'imdbId': movie['imdbID'],
+        'image': movie['Poster'],
+        }
+        movies_table.put_item(Item=movie_item)
         user_movies_table = boto3.resource('dynamodb').Table('UserMovies')
         user_movies_table.put_item(
             Item={
                'uuid': str(uuid.uuid4()),
-               'imdbId': imdbID,
+               'imdbId': movie['imdbID'],
                'userId': user_id,
             }
         )
+        movie_item['Response'] = 'True'
+        return movie_item 
 
 class ImdbService(object):
-    BASE_URL = "http://www.omdbapi.com/?" 
+    BASE_URL = "http://www.omdbapi.com/" 
     API_KEY = "3efbd445"
 
     @staticmethod
     def search_movie_title(movie_title):
-        query_params = {"apikey" : API_KEY, "t" : movie_title, "plot" : "short", "r" : "json"}
-        url = BASE_URL + urllib.urlencode()
+        query_params = {"apikey" : ImdbService.API_KEY, "t" : movie_title, "plot" : "short", "r" : "json"}
         movie = ImdbService._http_call(ImdbService.BASE_URL, query_params)
-        movie = json.load(response, parse_float = decimal.Decimal)
         if movie is None:
             movie['Response'] = "False"
         return movie;
