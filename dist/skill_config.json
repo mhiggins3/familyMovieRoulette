@@ -1,0 +1,201 @@
+{
+  "Skill": {
+    "version": "1.1",
+    "class_name": "alexa_family_movie_roulette_skill.AlexaFamilyMovieRouletteSkill",
+    "logging_level": "debug"
+  },
+  "Session": {
+    "persistence": false
+  },
+  "Dialog": {
+    "intent_control": {
+      "AddMovieIntent":      "add_movie_intent",
+      "FindMovieIntent":     "find_movie_intent",
+      "ListMoviesIntent":    "list_movies_intent",
+      "RemoveMovieIntent":   "remove_move_intent",
+      "AMAZON.CancelIntent": "default_cancel_intent",
+      "AMAZON.StopIntent":   "default_stop_intent"
+    },
+ 	"slots": {
+      "AddMovie": {
+        "speech_out_text": "What movie should I add? ",
+        "re_prompt_text": "Sorry I did not hear that. You can say add the movie Goonie ",
+        "expected_intent": "add_movie_intent",
+        "validation": {
+          "type_validator": "alexa_family_movie_roulette_types.ADD_MOVIE_TITLE",
+          "msg_01_text": "Sorry I could not hear the movie title, please try again, what movie do you want to add? "
+        }
+      },
+      "RemoveMovie": {
+        "speech_out_text": "What movie should I remove? ",
+        "re_prompt_text": "Sorry I did not hear that. You can say remove the movie Goonies.",
+        "expected_intent": "add_movie_intent",
+        "validation": {
+          "type_validator": "alexa_family_movie_roulette_types.REMOVE_MOVIE_TITLE",
+          "msg_01_text": "Sorry I could not hear the movie title, please try again, what movie do you want to remove? "
+        }
+      },
+
+    "add_movie_intent": {
+      "conditions": {
+        "add_movie_succeded": {
+      		"speech_out_text": "OK I will add the movie {AddMovie}. You can hear a random movie title by saying, what movie should I watch?",
+      		"re_prompt_text": "You can hear a random movie title by saying, what movie should I watch?",
+			"card": {
+				"title": "Add Movie",
+            	"content": [
+				"OK I will add the movie {AddMovie}. You can hear a random movie title by saying, what movie should I watch?"
+            	]
+			},
+      		"should_end_session": false
+        },
+        "add_movie_failed": {
+          "speech_out_text": [
+            "I could not find a movie with the title {AddMovie}",
+            "Please try again."
+			],
+          	"re_prompt_text": "Sorry I did not hear that. Please try again. ",
+			"card": {
+				"title": "Add Movie Failed",
+            	"content": [
+            	"I could not find a movie with the title {AddMovie}"
+            	]
+			},
+          	"should_end_session": false
+        }
+      }
+    },
+	"find_movie_intent": {
+      "conditions": {
+		"find_movie_succeded": {
+	   		"speech_out_text": [
+				"How about you check out {movie_title}. ",
+				"It's rated {rating}. ",
+				"Here is a quick description {description}. "
+			],
+			"card": {
+				"title": "Find A Movie",
+            	"content": [
+					"How about you check out {movie_title}. ",
+					"It's rated {rating}. ",
+					"Here is a quick description {description}. "
+            	]
+			},
+      		"should_end_session": true
+		},
+		"find_movie_failed": {
+	   		"speech_out_text": [
+				"I could not find any movies in your data base.",
+				"Try adding a new movie by saying add the movie Goonies."
+			],
+           	"card": {
+            	"title": "Find A Movie",
+                "content": [
+					"I could not find any movies in your data base.",
+					"Try adding a new movie by saying add the movie Goonies."
+                ]
+            },
+			"should_end_session": false
+		}
+	  }
+	},
+	"remove_movie_intent": {
+      "conditions": {
+		"remove_movie_succeded": {
+	   		"speech_out_text": [
+				"OK I removed the movie {movie_title} from your list. ",
+				"You can hear a random movie title by saying, ",
+                "what movie should I watch? "
+			],
+			"card": {
+				"title": "Remove A Movie",
+            	"content": [
+					"OK I removed the movie {movie_title} from your list. ",
+					"You can hear a random movie title by saying, ",
+                	"what movie should I watch? "
+            	]
+			},
+      		"should_end_session": false
+		},
+		"remove_movie_failed": {
+	   		"speech_out_text": [
+				"I could not find {RemoveMovie} in your data base.",
+				"Try removing it again."
+			],
+           	"card": {
+            	"title": "Find A Movie",
+                "content": [
+					"I could not find {RemoveMovie} in your data base.",
+					"Try removing it again."
+                ]
+            },
+			"should_end_session": false
+		}
+	  }
+	},
+	"list_movies_intent": {
+		"conditions": {
+			"list_movies_succeded": {
+	   			"speech_out_text": [
+					"you have the following movies in your list. {movies}"
+				],
+           		"card": {
+            		"title": "Find A Movie",
+            	    "content": [
+						"you have the following movies in your list. {movies}"
+            	    ]
+            	},
+				"should_end_session": true
+			},
+			"list_movies_failed": {
+				"list_movies_succeded": {
+	   				"speech_out_text": [
+						"I could not find any movies in your data base.",
+						"Try adding a new movie by saying add the movie Goonies."
+					],
+           			"card": {
+            			"title": "List Movies",
+            		    "content": [
+							"I could not find any movies in your data base.",
+							"Try adding a new movie by saying add the movie Goonies."
+            		    ]
+            		},
+					"should_end_session": false
+
+				}	
+		}
+	},
+	"launch_request": {
+      "method_name": "handle_default_intent",
+      "speech_out_text": [
+        "Welcome to family movie roulette. ",
+        "I can tell you a ramdom movie to watch by saying, ",
+        "what movie should I watch? ",
+		"or say add the movie Goonies"
+      ],      
+      "re_prompt_text": [
+        "Say what movie should I watch? ",
+        "Or say add the movie Goonies. "
+      ],  
+      "should_end_session": false
+    },  
+    "help_intent": {
+      "method_name": "handle_default_intent",
+      "card_title": "Help",
+      "speech_out_text": [
+					"Welcome to family movie roulette. ",
+                    "I can tell you a ramdom movie to watch by saying, ",
+                    "what movie should I watch?, ",
+                    "You can add a movie by saying ",
+                    "add the movie Goonies. ",
+                    "You can also delete an existing movie by saying, ",
+                    "Delete the movive Goonies."
+      ],
+      "re_prompt_text": "Say what movie should I watch, or say add the movie Goonies",
+      "should_end_session": false
+    }
+  }
+}
+}
+}
+

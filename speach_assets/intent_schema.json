@@ -1,0 +1,93 @@
+{
+  "intents": [
+    {
+      "name": "AddMovieIntent",
+      "samples": [
+        "add the movie {Movie}",
+        "add movie {Movie}"
+      ],
+      "slots": [
+        {
+          "name": "Movie",
+          "type": "MOVIE_TITLE",
+          "samples": []
+        }
+      ]
+    },
+    {
+      "name": "AMAZON.CancelIntent",
+      "samples": []
+    },
+    {
+      "name": "AMAZON.HelpIntent",
+      "samples": []
+    },
+    {
+      "name": "AMAZON.StopIntent",
+      "samples": []
+    },
+    {
+      "name": "FindMovieIntent",
+      "samples": [
+        "what movie should I watch",
+        "what should I watch",
+        "what movie should we watch",
+        "what should we watch"
+      ],
+      "slots": []
+    },
+    {
+      "name": "ListMoviesIntent",
+      "samples": [
+        "what movies are in my list",
+        "list movies",
+        "list my movies"
+      ],
+      "slots": []
+    },
+    {
+      "name": "RemoveMovieIntent",
+      "samples": [
+        "remove the movie {Movie}",
+        "remove movie {Movie}",
+        "delete the movie {Movie}",
+        "delete movie {Movie}"
+      ],
+      "slots": [
+        {
+          "name": "Movie",
+          "type": "MOVIE_TITLE",
+          "samples": []
+        }
+      ]
+    }
+  ],
+  "types": [
+    {
+      "name": "MOVIE_TITLE",
+      "values": [
+        {
+          "id": null,
+          "name": {
+            "value": "Goonies",
+            "synonyms": []
+          }
+        },
+        {
+          "id": null,
+          "name": {
+            "value": "The War",
+            "synonyms": []
+          }
+        },
+        {
+          "id": null,
+          "name": {
+            "value": "Avengers",
+            "synonyms": []
+          }
+        }
+      ]
+    }
+  ]
+}
